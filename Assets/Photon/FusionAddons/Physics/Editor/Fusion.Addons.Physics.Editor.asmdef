@@ -1,0 +1,22 @@
+{
+    "name": "Fusion.Addons.Physics.Editor",
+    "rootNamespace": "Fusion.Addons.Physics.Editor",
+    "references": [
+        "GUID:ee448cb1442054024b3c982e54100a6a"
+    ],
+    "includePlatforms": [
+        "Android",
+        "Editor",
+        "iOS",
+        "macOSStandalone",
+        "WebGL"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

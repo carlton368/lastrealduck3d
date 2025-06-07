@@ -5,20 +5,45 @@ public class PlayerSpawner : SimulationBehaviour, IPlayerJoined
 {
     [Tooltip("플레이어 캐릭터 프리팹 (NetworkObject 포함)")]
     public GameObject PlayerPrefab;
-
-    // 초기 스폰 위치. 필요에 따라 배열로 바꿔 팀별 스폰 지점 구현 가능
+    
+    [Tooltip("독립 카메라 프리팹")]
+    public GameObject CameraPrefab;
+    
     [SerializeField] private Vector3 _initialSpawnPos;
-
+    [SerializeField] private Vector3 _initialCameraPos;
+    
     public void PlayerJoined(PlayerRef player)
     {
-        // 로컬 플레이어만 스폰 (호스트 또는 클라이언트 자기 자신)
+        // 로컬 플레이어만 처리
         if (player == Runner.LocalPlayer)
         {
-            // NetworkObject에 InputAuthority를 부여하려면 4번째 매개변수로 PlayerRef를 전달해야 함
-            Runner.Spawn(PlayerPrefab,
-                         _initialSpawnPos,
-                         Quaternion.identity,
-                         player); // <-- 핵심 수정: InputAuthority 설정
+            // 1. 플레이어 스폰
+            Runner.Spawn(PlayerPrefab, _initialSpawnPos, Quaternion.identity, player);
+            
+            // 2. 독립적인 로컬 카메라 생성 (네트워크 오브젝트가 아님)
+            CreateLocalCamera();
         }
+    }
+    
+    private void CreateLocalCamera()
+    {
+        GameObject cameraObj;
+        
+        if (CameraPrefab != null)
+        {
+            // 프리팹이 있으면 인스턴시에이트
+            cameraObj = Instantiate(CameraPrefab, _initialCameraPos, Quaternion.identity);
+        }
+        else
+        {
+            // 프리팹이 없으면 런타임에 생성
+            cameraObj = new GameObject("LocalCamera");
+            cameraObj.transform.position = _initialCameraPos;
+            cameraObj.AddComponent<Camera>();
+            cameraObj.AddComponent<FreeCameraController>();
+        }
+        
+        // 로컬 전용으로 표시 (선택사항)
+        cameraObj.name = "LocalCamera_" + Runner.LocalPlayer;
     }
 }

@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 345659635118639507}
   - component: {fileID: 2933959356609958672}
   - component: {fileID: 1206879839170534852}
+  - component: {fileID: 4472059299328908538}
   m_Layer: 0
   m_Name: Prototype Runner
   m_TagString: Untagged
@@ -158,4 +159,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PlayerPrefab: {fileID: 8563356403336790171, guid: bddce7b3bfc764c3bb8a672f2a5ddd02, type: 3}
+  CameraPrefab: {fileID: 6694194303301124691, guid: 83241e896d3bf42ddb8e9d23e1a7c05b, type: 3}
   _initialSpawnPos: {x: 0, y: 5, z: 0}
+  _initialCameraPos: {x: 0, y: 5, z: 0}
+--- !u!114 &4472059299328908538
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8874826739557097574}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7b5a1ff9dee264bfd829a39e6542dcbd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _physicsAuthority: 2
+  _physicsTiming: 3
+  ClientPhysicsSimulation: 0
+  DeltaTimeMultiplier: 1
+  SetUnityFixedTimestep: 0
