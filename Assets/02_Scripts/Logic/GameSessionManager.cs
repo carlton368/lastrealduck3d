@@ -255,7 +255,7 @@ namespace CuteDuckGame
             
             if (playerCountText != null)
             {
-                playerCountText.text = $"진짜 오리 {ConnectedPlayers}마리가 숨었다!?";
+                playerCountText.text = $"오리 {ConnectedPlayers}마리";
             }
         }
         

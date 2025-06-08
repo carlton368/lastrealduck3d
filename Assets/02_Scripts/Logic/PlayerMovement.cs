@@ -7,6 +7,7 @@ using CuteDuckGame;
 /// Fusion 네트워크 기반으로 플레이어 점프 이동을 처리하는 스크립트입니다.
 /// 입력 권한(InputAuthority)을 가진 로컬 플레이어만 조작할 수 있으며,
 /// 카메라 시점을 기준으로 물리 힘을 가해 이동을 수행합니다.
+/// 강도 시스템을 통해 다양한 파워로 이동할 수 있습니다.
 /// </summary>
 public class PlayerMovement : NetworkBehaviour
 {
@@ -28,8 +29,16 @@ public class PlayerMovement : NetworkBehaviour
     private NetworkRigidbody3D _networkRigidbody;
 
     [Header("이동 설정")]
-    public float MoveForce = 500f;
+    public float MoveForce = 1000f;
     public float MaxSpeed = 10f;
+    
+    [Header("강도 기반 이동 설정")]
+    [Tooltip("최소 이동 강도 (0~1)")]
+    public float MinIntensity = 0.2f;
+    [Tooltip("최대 이동 강도 (0~1)")]
+    public float MaxIntensity = 1.0f;
+    [Tooltip("강도에 따른 힘 배율 곡선")]
+    public AnimationCurve intensityCurve = AnimationCurve.Linear(0f, 0.2f, 1f, 1f);
 
     [Header("물리 설정")]
     public float Drag = 2f;
@@ -46,11 +55,18 @@ public class PlayerMovement : NetworkBehaviour
     // 입력 처리용 (레이턴시 최적화)
     private bool _spacePressed;
     private float _lastInputTime;
+    private float _currentIntensity = 1.0f; // 현재 이동 강도
 
     private void Awake()
     {
         // Dead 레이어 인덱스 캐싱
         _deadLayer = LayerMask.NameToLayer("dead");
+        
+        // 기본 강도 곡선 설정 (인스펙터에서 설정되지 않은 경우)
+        if (intensityCurve.keys.Length == 0)
+        {
+            intensityCurve = AnimationCurve.Linear(0f, 0.2f, 1f, 1f);
+        }
     }
 
     public override void Spawned()
@@ -79,8 +95,6 @@ public class PlayerMovement : NetworkBehaviour
         _networkRigidbody.Rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         
         FindPlayerCamera();
-        
-        // Debug.Log 제거 (성능 향상)
     }
 
     private void FindPlayerCamera()
@@ -140,7 +154,7 @@ public class PlayerMovement : NetworkBehaviour
         if (_spacePressed)
         {
             // 요청된 점프/이동 실행
-            AddCameraDirectionForce();
+            AddCameraDirectionForce(_currentIntensity);
             _spacePressed = false;
         }
 
@@ -148,10 +162,14 @@ public class PlayerMovement : NetworkBehaviour
         CheckGrounded();
     }
 
-    private void AddCameraDirectionForce()
+    private void AddCameraDirectionForce(float intensity = 1.0f)
     {
         // 필요한 컴포넌트 체크
         if (_playerCamera == null || _networkRigidbody == null) return;
+
+        // 강도 정규화 및 곡선 적용
+        intensity = Mathf.Clamp(intensity, MinIntensity, MaxIntensity);
+        float curveIntensity = intensityCurve.Evaluate(intensity);
 
         // 카메라 전방 벡터(Y축 제거) 계산
         Vector3 cameraForward = _playerCamera.transform.forward;
@@ -162,18 +180,27 @@ public class PlayerMovement : NetworkBehaviour
         Vector3 currentVelocity = localRb.linearVelocity;
         Vector3 horizontalVelocity = new Vector3(currentVelocity.x, 0, currentVelocity.z);
 
-        // 최대 속도 제한
-        if (horizontalVelocity.magnitude < MaxSpeed)
+        // 강도에 따른 힘 계산
+        float finalForce = MoveForce * curveIntensity;
+
+        // 최대 속도 제한 (강도에 따라 조정)
+        float maxSpeedForThisMove = MaxSpeed * curveIntensity;
+        
+        if (horizontalVelocity.magnitude < maxSpeedForThisMove)
         {
             // 즉시 로컬 물리 적용 (네트워크 지연 없음)
-            localRb.AddForce(forceDirection * MoveForce, ForceMode.Force);
+            localRb.AddForce(forceDirection * finalForce, ForceMode.Force);
+            
+            Debug.Log($"이동 강도: {intensity:F2} -> 곡선 적용: {curveIntensity:F2} -> 최종 힘: {finalForce:F0}");
         }
 
-        // Play random audio when grounded
+        // Play random audio when grounded (강도에 따라 볼륨 조절)
         if (IsGrounded && audioSources != null && audioSources.Length > 0)
         {
             int randomIndex = Random.Range(0, audioSources.Length);
-            audioSources[randomIndex].Play();
+            AudioSource selectedAudio = audioSources[randomIndex];
+            selectedAudio.volume = 0.5f + (curveIntensity * 0.5f); // 50% ~ 100% 볼륨
+            selectedAudio.Play();
         }
     }
 
@@ -228,8 +255,6 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
-    // 디버그 기즈모 제거 (성능 향상)
-
     // 컴포넌트 상태 확인
     private void OnValidate()
     {
@@ -238,6 +263,14 @@ public class PlayerMovement : NetworkBehaviour
         if (GetComponent<NetworkRigidbody3D>() == null)
         {
             Debug.LogWarning($"{name}: NetworkRigidbody3D 컴포넌트가 필요합니다!");
+        }
+        
+        // 강도 값 검증
+        MinIntensity = Mathf.Clamp01(MinIntensity);
+        MaxIntensity = Mathf.Clamp01(MaxIntensity);
+        if (MinIntensity > MaxIntensity)
+        {
+            MinIntensity = MaxIntensity;
         }
     }
 
@@ -261,13 +294,34 @@ public class PlayerMovement : NetworkBehaviour
     /// <summary>
     /// 외부 입력(예: 얼굴 AR 제스처)으로 점프/이동을 요청합니다.
     /// </summary>
-    public void RequestJump()
+    /// <param name="intensity">이동 강도 (0~1, 기본값 1.0)</param>
+    public void RequestJump(float intensity = 1.0f)
     {
         // 쿨타임 검사 후 다음 FixedUpdateNetwork에서 처리되도록 플래그 설정
         if (Time.time - _lastInputTime > 0.1f)
         {
+            _currentIntensity = intensity;
             _spacePressed = true;
             _lastInputTime = Time.time;
         }
+    }
+
+    /// <summary>
+    /// 현재 이동 강도를 가져옵니다.
+    /// </summary>
+    public float GetCurrentIntensity()
+    {
+        return _currentIntensity;
+    }
+
+    /// <summary>
+    /// 강도 곡선을 통해 실제 적용될 강도를 계산합니다.
+    /// </summary>
+    /// <param name="rawIntensity">원본 강도 (0~1)</param>
+    /// <returns>곡선이 적용된 강도</returns>
+    public float CalculateIntensity(float rawIntensity)
+    {
+        float clampedIntensity = Mathf.Clamp(rawIntensity, MinIntensity, MaxIntensity);
+        return intensityCurve.Evaluate(clampedIntensity);
     }
 }
