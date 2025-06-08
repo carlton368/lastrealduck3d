@@ -103,12 +103,26 @@ public class PlayerMovement : NetworkBehaviour
             FindPlayerCamera();
         }
 
-        // Space키 입력 수집 (중복 입력 방지로 성능 향상)
+        // 플랫폼별 입력 처리
+#if UNITY_ANDROID || UNITY_IOS
+        // 화면 터치(첫번째 터치) 시작 시 점프 입력으로 간주
+        if (Input.touchCount > 0)
+        {
+            Touch touch = Input.GetTouch(0);
+            if (touch.phase == TouchPhase.Began && Time.time - _lastInputTime > 0.1f)
+            {
+                _spacePressed = true;
+                _lastInputTime = Time.time;
+            }
+        }
+#else
+        // 데스크톱: Space 키 입력
         if (Input.GetKeyDown(KeyCode.Space) && Time.time - _lastInputTime > 0.1f)
         {
             _spacePressed = true;
             _lastInputTime = Time.time;
         }
+#endif
     }
 
     public override void FixedUpdateNetwork()
