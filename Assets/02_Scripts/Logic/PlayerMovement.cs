@@ -3,10 +3,15 @@ using Fusion.Addons.Physics;
 using UnityEngine;
 using CuteDuckGame;
 
+/// <summary>
+/// Fusion 네트워크 기반으로 플레이어 점프 이동을 처리하는 스크립트입니다.
+/// 입력 권한(InputAuthority)을 가진 로컬 플레이어만 조작할 수 있으며,
+/// 카메라 시점을 기준으로 물리 힘을 가해 이동을 수행합니다.
+/// </summary>
 public class PlayerMovement : NetworkBehaviour
 {
     // Dead 레이어 인덱스 (Awake에서 초기화)
-    private int _deadLayer;
+    private int _deadLayer; // 사망 처리용 Dead 레이어 인덱스
     private bool _isDead;
 
     // 사망 처리 RPC: 사망자에겐 패배 UI, 나머지에겐 승리 UI
@@ -44,7 +49,7 @@ public class PlayerMovement : NetworkBehaviour
 
     private void Awake()
     {
-        // Dead layer 캐시
+        // Dead 레이어 인덱스 캐싱
         _deadLayer = LayerMask.NameToLayer("dead");
     }
 
@@ -95,6 +100,7 @@ public class PlayerMovement : NetworkBehaviour
 
     private void Update()
     {
+        // 입력 권한이 없는 클라이언트는 동작 무시
         if (!Object.HasInputAuthority) return;
 
         // LocalCamera가 없다면 다시 찾기
@@ -103,18 +109,18 @@ public class PlayerMovement : NetworkBehaviour
             FindPlayerCamera();
         }
 
-        // 플랫폼별 입력 처리
+        // 플랫폼별 입력 처리 (모바일 터치 / 데스크톱 키보드)
 #if UNITY_ANDROID || UNITY_IOS
         // 화면 터치(첫번째 터치) 시작 시 점프 입력으로 간주
-        if (Input.touchCount > 0)
-        {
-            Touch touch = Input.GetTouch(0);
-            if (touch.phase == TouchPhase.Began && Time.time - _lastInputTime > 0.1f)
-            {
-                _spacePressed = true;
-                _lastInputTime = Time.time;
-            }
-        }
+        // if (Input.touchCount > 0)
+        // {
+        //     Touch touch = Input.GetTouch(0);
+        //     if (touch.phase == TouchPhase.Began && Time.time - _lastInputTime > 0.1f)
+        //     {
+        //         _spacePressed = true;
+        //         _lastInputTime = Time.time;
+        //     }
+        // }
 #else
         // 데스크톱: Space 키 입력
         if (Input.GetKeyDown(KeyCode.Space) && Time.time - _lastInputTime > 0.1f)
@@ -127,11 +133,13 @@ public class PlayerMovement : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        // 네트워크 틱마다 로컬 입력 처리 및 이동 적용
         if (!Object.HasInputAuthority) return;
 
-        // Space키 처리
+        // 점프/이동 요청 처리
         if (_spacePressed)
         {
+            // 요청된 점프/이동 실행
             AddCameraDirectionForce();
             _spacePressed = false;
         }
@@ -142,9 +150,10 @@ public class PlayerMovement : NetworkBehaviour
 
     private void AddCameraDirectionForce()
     {
+        // 필요한 컴포넌트 체크
         if (_playerCamera == null || _networkRigidbody == null) return;
 
-        // 카메라가 바라보는 방향 (Y축 제외한 수평 방향만)
+        // 카메라 전방 벡터(Y축 제거) 계산
         Vector3 cameraForward = _playerCamera.transform.forward;
         Vector3 forceDirection = new Vector3(cameraForward.x, 0, cameraForward.z).normalized;
 
@@ -246,6 +255,19 @@ public class PlayerMovement : NetworkBehaviour
             Stop();
             // 사망 RPC 호출
             OnDeathRpc();
+        }
+    }
+
+    /// <summary>
+    /// 외부 입력(예: 얼굴 AR 제스처)으로 점프/이동을 요청합니다.
+    /// </summary>
+    public void RequestJump()
+    {
+        // 쿨타임 검사 후 다음 FixedUpdateNetwork에서 처리되도록 플래그 설정
+        if (Time.time - _lastInputTime > 0.1f)
+        {
+            _spacePressed = true;
+            _lastInputTime = Time.time;
         }
     }
 }

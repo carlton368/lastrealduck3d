@@ -11,7 +11,7 @@ PlayerSettings:
   defaultScreenOrientation: 4
   targetDevice: 0
   useOnDemandResources: 0
-  accelerometerFrequency: 60
+  accelerometerFrequency: 100
   companyName: wonjinisduck
   productName: My project (7)
   defaultCursor: {fileID: 0}
@@ -84,7 +84,7 @@ PlayerSettings:
   macRetinaSupport: 1
   runInBackground: 1
   muteOtherAudioSources: 0
-  Prepare IOS For Recording: 0
+  Prepare IOS For Recording: 1
   Force IOS Speakers When Recording: 0
   deferSystemGesturesMode: 0
   hideHomeButton: 0
@@ -142,6 +142,9 @@ PlayerSettings:
   tvOSBundleVersion: 1.0
   bundleVersion: 0.1.0
   preloadedAssets:
+  - {fileID: 4800000, guid: e7c77f6eaab324a819efdc13b8125a39, type: 3}
+  - {fileID: 4800000, guid: 6743a50a812740be8c0aa3fccc46fae9, type: 3}
+  - {fileID: -1228553529977732495, guid: 4cbab40e2e056435cbf07d378d9221bc, type: 2}
   - {fileID: 11400000, guid: 500ea4670ca1344089e4956bdee3c3f2, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
@@ -248,8 +251,8 @@ PlayerSettings:
   iOSManualSigningProvisioningProfileType: 0
   tvOSManualSigningProvisioningProfileType: 0
   VisionOSManualSigningProvisioningProfileType: 0
-  appleEnableAutomaticSigning: 0
-  iOSRequireARKit: 0
+  appleEnableAutomaticSigning: 2
+  iOSRequireARKit: 1
   iOSAutomaticallyDetectAndAddCapabilities: 1
   appleEnableProMotion: 0
   shaderPrecisionModel: 0
@@ -582,9 +585,9 @@ PlayerSettings:
   enableInternalProfiler: 0
   logObjCUncaughtExceptions: 1
   enableCrashReportAPI: 0
-  cameraUsageDescription: Required for augmented reality support.
-  locationUsageDescription: 
-  microphoneUsageDescription: 
+  cameraUsageDescription: camera
+  locationUsageDescription: location
+  microphoneUsageDescription: mic
   bluetoothUsageDescription: 
   macOSTargetOSVersion: 11.0
   switchNMETAOverride: 
@@ -843,7 +846,7 @@ PlayerSettings:
   scriptingDefineSymbols:
     Standalone: FUSION_LOGLEVEL_INFO;FUSION_WEAVER;FUSION2
     WebGL: FUSION_WEAVER;FUSION2;FUSION_LOGLEVEL_INFO
-    iPhone: FUSION_WEAVER;FUSION2;FUSION_LOGLEVEL_INFO
+    iPhone: FUSION_WEAVER;FUSION2;FUSION_LOGLEVEL_INFO;UNITY_XR_ARKIT_LOADER_ENABLED;UNITY_XR_ARKIT_FACE_TRACKING_ENABLED
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:
