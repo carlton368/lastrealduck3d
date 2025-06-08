@@ -17,6 +17,9 @@ public class PlayerMovement : NetworkBehaviour
     public float Mass = 1f;
     public float GroundCheckDistance = 1.1f;
 
+    [Header("Audio")]
+    public AudioSource[] audioSources;
+
     // 네트워크 동기화 변수들
     [Networked] public bool IsGrounded { get; set; }
 
@@ -120,6 +123,13 @@ public class PlayerMovement : NetworkBehaviour
         {
             // 즉시 로컬 물리 적용 (네트워크 지연 없음)
             localRb.AddForce(forceDirection * MoveForce, ForceMode.Force);
+        }
+
+        // Play random audio when grounded
+        if (IsGrounded && audioSources != null && audioSources.Length > 0)
+        {
+            int randomIndex = Random.Range(0, audioSources.Length);
+            audioSources[randomIndex].Play();
         }
     }
 
