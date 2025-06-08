@@ -100,24 +100,13 @@ namespace CuteDuckGame
         {
             if (defeatPanel != null)
                 defeatPanel.SetActive(true);
+            // 입력 비활성화
+            ToggleInteraction(false);
             // 커서 잠금 해제 및 보이기
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
-            // Fusion 세션 종료 (호스트인 경우 호스트 마이그레이션 발생)
-            FusionSession.Instance.TryDisconnect();
-            // 입력 비활성화
-            ToggleInteraction(false);
-            // 설정된 씬으로 자동 전환
-            StartCoroutine(ReturnToScene());
-        }
-
-        private IEnumerator ReturnToScene()
-        {
-            // 3초 대기 후 씬 전환 및 Fusion 재연결
-            yield return new WaitForSeconds(3f);
-            SceneManager.LoadScene(returnSceneBuildIndex);
-            // Shared 모드 다시 시작
-            FusionSession.Instance.TryConnect();
+            // 패배 처리: 3초 대기 후 세션 종료 및 씬 전환, 재연결
+            FusionSession.Instance.HandleDefeat(returnSceneBuildIndex, returnDelay);
         }
     }
 }

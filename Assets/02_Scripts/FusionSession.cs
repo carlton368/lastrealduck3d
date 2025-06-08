@@ -91,14 +91,42 @@ namespace CuteDuckGame
             Runner.Shutdown();
         }
 
+        // 싱글톤 접근을 위한 인스턴스 (이미 추가됨)
+        private bool _skipLoadTitleOnShutdown; // defeat시에 title 씬 로드를 건너뛰기 위한 플래그
+
+        /// <summary>
+        /// 패배 후 일정 시간 대기 후 세션 종료(호스트 마이그레이션) 및 씬 전환, 세션 재연결
+        /// </summary>
+        public void HandleDefeat(int returnSceneBuildIndex, float delaySeconds = 3f)
+        {
+            StartCoroutine(HandleDefeatRoutine(returnSceneBuildIndex, delaySeconds));
+        }
+
+        private IEnumerator HandleDefeatRoutine(int returnSceneBuildIndex, float delaySeconds)
+        {
+            yield return new WaitForSeconds(delaySeconds);
+            // title 씬 로드 방지
+            _skipLoadTitleOnShutdown = true;
+            // 세션 종료 -> 호스트면 마이그레이션 발생
+            if (Runner != null)
+                Runner.Shutdown();
+            // 지정 씬 로드
+            SceneManager.LoadScene(returnSceneBuildIndex);
+            // 세션 재연결
+            TryConnect();
+            // 플래그 초기화
+            _skipLoadTitleOnShutdown = false;
+        }
+
         // NetworkRunner가 종료될 때 호출되는 콜백
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
             Runner = null;
-            // 정상적으로 종료되었다면 타이틀 씬으로 되돌아감
+            // 정상 종료 시, 특정 상황 제외하고 타이틀 씬 로드
             if (shutdownReason == ShutdownReason.Ok)
             {
-                SceneManager.LoadScene(titleScene);
+                if (!_skipLoadTitleOnShutdown)
+                    SceneManager.LoadScene(titleScene);
             }
             else
             {
