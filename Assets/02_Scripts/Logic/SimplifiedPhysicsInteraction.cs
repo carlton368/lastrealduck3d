@@ -18,6 +18,11 @@ public class SimplifiedPhysicsInteraction : NetworkBehaviour
     [SerializeField] private AudioClip[] collisionSounds;
     [SerializeField] private float effectThreshold = 5f;
     
+    [Header("로컬 즉시 이펙트")]
+    [SerializeField] private GameObject localEffectPrefab; // 로컬 전용 약한 이펙트
+    [SerializeField] private float localEffectIntensity = 0.6f; // 로컬 이펙트 강도 (60%)
+    [SerializeField] private float localEffectDuration = 1.5f; // 로컬 이펙트 지속 시간
+    
     // 컴포넌트 참조
     private NetworkRigidbody3D networkRigidbody;
     private PlayerMovement playerMovement;
@@ -96,6 +101,10 @@ public class SimplifiedPhysicsInteraction : NetworkBehaviour
         lastCollisionTimes[otherId] = currentTime;
         LastCollisionTime = currentTime;
         
+        // 💥 1단계: 로컬 즉시 이펙트 재생 (네트워크 지연 없음)
+        Vector3 collisionPoint = collision.contacts[0].point;
+        PlayLocalImmediateEffect(collisionPoint, impulse);
+        
         // 즉시 충돌 처리 (분리된 메서드 호출 제거로 성능 향상)
         Vector3 force = -collision.contacts[0].normal * impulse * pushbackMultiplier;
         rb?.AddForce(force, ForceMode.Impulse); // 즉시 100% 적용
@@ -104,7 +113,7 @@ public class SimplifiedPhysicsInteraction : NetworkBehaviour
         if (currentTime - lastGlobalRpcTime >= GLOBAL_RPC_COOLDOWN)
         {
             lastGlobalRpcTime = currentTime;
-            SimpleCollisionRpc(otherId, force, collision.contacts[0].point, impulse);
+            SimpleCollisionRpc(otherId, force, collisionPoint, impulse);
         }
     }
     
@@ -207,14 +216,72 @@ public class SimplifiedPhysicsInteraction : NetworkBehaviour
         }
     }
     
+    /// <summary>
+    /// 🚀 로컬 즉시 이펙트 - 네트워크 지연 없이 즉시 재생
+    /// </summary>
+    private void PlayLocalImmediateEffect(Vector3 position, float intensity)
+    {
+        // 효과 임계값 체크
+        if (intensity < minCollisionForce) return;
+        
+        // 로컬 파티클 이펙트 재생
+        GameObject effectToUse = localEffectPrefab != null ? localEffectPrefab : collisionEffectPrefab;
+        if (effectToUse != null)
+        {
+            var localEffect = Instantiate(effectToUse, position, Quaternion.identity);
+            
+            // 로컬 이펙트는 약간 작게 (예측 이펙트임을 시각적으로 표현)
+            float localScale = Mathf.Clamp(intensity / 10f * localEffectIntensity, 0.3f, 1.2f);
+            localEffect.transform.localScale = Vector3.one * localScale;
+            
+            // 로컬 이펙트 태그 설정 (나중에 구분 가능)
+            TrySetTag(localEffect, "LocalEffect");
+            
+            // 로컬 이펙트는 짧게 지속
+            Destroy(localEffect, localEffectDuration);
+        }
+        
+        // 로컬 사운드 재생 (약간 작은 볼륨)
+        if (audioSource != null && collisionSounds.Length > 0)
+        {
+            int soundIndex = Mathf.FloorToInt(intensity / 5f);
+            soundIndex = Mathf.Clamp(soundIndex, 0, collisionSounds.Length - 1);
+            
+            // 로컬 이펙트는 60% 볼륨으로 재생
+            float originalVolume = audioSource.volume;
+            audioSource.volume = originalVolume * localEffectIntensity;
+            audioSource.PlayOneShot(collisionSounds[soundIndex]);
+            audioSource.volume = originalVolume; // 볼륨 복원
+        }
+        else
+        {
+            // 📢 사운드 재생 실패 원인 진단 로그
+            if (audioSource == null)
+            {
+                Debug.LogWarning($"[Sound Check] AudioSource is NULL on {gameObject.name}. Cannot play sound.");
+            }
+            if (collisionSounds.Length == 0)
+            {
+                Debug.LogWarning($"[Sound Check] CollisionSounds array is EMPTY on {gameObject.name}. No sounds to play.");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 서버 검증 후 확정 이펙트 (기존 메서드)
+    /// </summary>
     private void PlayCollisionEffect(Vector3 position, float intensity)
     {
-        // 기존 효과 로직
+        // 기존 효과 로직 (확정 이펙트)
         if (collisionEffectPrefab != null)
         {
             var effect = Instantiate(collisionEffectPrefab, position, Quaternion.identity);
             float scale = Mathf.Clamp(intensity / 10f, 0.5f, 2f);
             effect.transform.localScale = Vector3.one * scale;
+            
+            // 확정 이펙트 태그 설정
+            TrySetTag(effect, "ConfirmedEffect");
+            
             Destroy(effect, 2f);
         }
         
@@ -223,6 +290,22 @@ public class SimplifiedPhysicsInteraction : NetworkBehaviour
             int soundIndex = Mathf.FloorToInt(intensity / 5f);
             soundIndex = Mathf.Clamp(soundIndex, 0, collisionSounds.Length - 1);
             audioSource.PlayOneShot(collisionSounds[soundIndex]);
+        }
+    }
+    
+    /// <summary>
+    /// 안전하게 태그를 설정하는 헬퍼 메서드
+    /// </summary>
+    private void TrySetTag(GameObject obj, string tagName)
+    {
+        try
+        {
+            obj.tag = tagName;
+        }
+        catch (UnityException)
+        {
+            // 태그가 없으면 무시 (기능에는 영향 없음)
+            Debug.LogWarning($"Tag '{tagName}' not found. Effect will work without tag.");
         }
     }
     
