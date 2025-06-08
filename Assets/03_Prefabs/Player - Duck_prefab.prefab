@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 4487562302934159831}
   - component: {fileID: 1760974683825744581}
   - component: {fileID: 8989649005860821038}
+  - component: {fileID: -1152710000542910632}
   m_Layer: 3
   m_Name: Player - Duck_prefab
   m_TagString: Player
@@ -56,6 +57,7 @@ MonoBehaviour:
   NetworkedBehaviours:
   - {fileID: 4487562302934159831}
   - {fileID: 8989649005860821038}
+  - {fileID: -1152710000542910632}
   ForceRemoteRenderTimeframe: 0
 --- !u!135 &6898080940431299166
 SphereCollider:
@@ -147,6 +149,29 @@ MonoBehaviour:
   Mass: 1
   GroundCheckDistance: 1.1
   _IsGrounded: 0
+--- !u!114 &-1152710000542910632
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8563356403336790171}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0cd4afd3baa14bb888f92591e2b58c3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minCollisionForce: 2
+  pushbackMultiplier: 1.5
+  enablePlayerPushback: 1
+  enableObjectInteraction: 1
+  collisionCooldown: 0.1
+  collisionEffectPrefab: {fileID: 0}
+  collisionSounds: []
+  effectThreshold: 5
+  _ActiveCollisions:
+    _items: []
+  _LastCollisionTime: 0
 --- !u!1001 &6249162069559931527
 PrefabInstance:
   m_ObjectHideFlags: 0
