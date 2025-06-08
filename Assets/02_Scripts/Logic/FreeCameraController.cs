@@ -59,15 +59,14 @@ public class FreeCameraController : MonoBehaviour
         float mouseY = 0f;
 
 #if UNITY_ANDROID || UNITY_IOS
-        // 모바일: 터치 드래그로 시선 회전 (첫번째 터치)
-        if (Input.touchCount > 0)
+        // 모바일: 두 손가락 드래그로 시선 회전 (두 번째 터치)
+        if (Input.touchCount > 1)
         {
-            Touch touch = Input.GetTouch(0);
-            if (touch.phase == TouchPhase.Moved)
+            Touch rotateTouch = Input.GetTouch(1);
+            if (rotateTouch.phase == TouchPhase.Moved)
             {
-                // deltaPosition은 프레임 사이 픽셀 이동량이므로 감도 보정 필요
-                mouseX = touch.deltaPosition.x * mouseSensitivity * 0.02f;
-                mouseY = touch.deltaPosition.y * mouseSensitivity * 0.02f;
+                mouseX = rotateTouch.deltaPosition.x * mouseSensitivity * 0.02f;
+                mouseY = rotateTouch.deltaPosition.y * mouseSensitivity * 0.02f;
             }
         }
 #else
@@ -122,33 +121,27 @@ public class FreeCameraController : MonoBehaviour
         }
 #endif
 
-        // 모바일 전용 이동 처리 (두 번째 손가락 드래그)
+        // 모바일 전용 이동 처리 (한 손가락 드래그)
 #if UNITY_ANDROID || UNITY_IOS
-        Vector3 moveVector = Vector3.zero;
-
-        // 두 번째 손가락의 이동량을 카메라 이동으로 사용
-        if (Input.touchCount > 1)
+        // 한 손가락 드래그로 카메라 이동 (첫번째 터치)
+        if (Input.touchCount == 1)
         {
-            Touch moveTouch = Input.GetTouch(1);
+            Vector3 moveVector = Vector3.zero;
 
+            Touch moveTouch = Input.GetTouch(0);
             if (moveTouch.phase == TouchPhase.Moved || moveTouch.phase == TouchPhase.Stationary)
             {
-                // deltaPosition은 한 프레임 동안의 픽셀 이동량이므로 감도 보정을 위해 스케일 계수 적용
                 Vector2 moveDelta = moveTouch.deltaPosition * 0.02f;
-
-                // 전후(Delta Y), 좌우(Delta X) 이동 반영
                 moveVector += transform.forward * moveDelta.y;
                 moveVector += transform.right * moveDelta.x;
             }
-        }
 
-        if (moveVector.sqrMagnitude > 0.0001f)
-        {
-            float currentSpeed = moveSpeed;
-            Vector3 targetPosition = transform.position + moveVector.normalized * currentSpeed * Time.deltaTime;
-
-            // 충돌 검사 후 이동
-            MoveWithCollisionCheck(targetPosition);
+            if (moveVector.sqrMagnitude > 0.0001f)
+            {
+                float currentSpeed = moveSpeed;
+                Vector3 targetPosition = transform.position + moveVector.normalized * currentSpeed * Time.deltaTime;
+                MoveWithCollisionCheck(targetPosition);
+            }
         }
 #endif
     }
