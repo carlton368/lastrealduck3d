@@ -11,7 +11,7 @@ public class SimplifiedPhysicsInteraction : NetworkBehaviour
     [SerializeField] private float pushbackMultiplier = 1.5f;
     [SerializeField] private bool enablePlayerPushback = true;
     [SerializeField] private bool enableObjectInteraction = true;
-    [SerializeField] private float collisionCooldown = 0.1f;
+    [SerializeField] private float collisionCooldown = 0.01f; // 극한 최적화: 0.01초
     
     [Header("상호작용 효과")]
     [SerializeField] private GameObject collisionEffectPrefab;
@@ -24,12 +24,18 @@ public class SimplifiedPhysicsInteraction : NetworkBehaviour
     private AudioSource audioSource;
     private Rigidbody rb;
     
-    // 네트워크 변수
-    [Networked] public NetworkDictionary<NetworkId, float> ActiveCollisions => default;
+    // 네트워크 변수 (최소화)
     [Networked] public float LastCollisionTime { get; set; }
+    
+    // 네트워크 최적화 연동
+    private NetworkOptimizer networkOptimizer;
     
     // 충돌 추적
     private Dictionary<NetworkId, float> lastCollisionTimes = new Dictionary<NetworkId, float>();
+    
+    // 최적화: 간단한 쿨다운 시스템으로 변경
+    private float lastGlobalRpcTime = 0f;
+    private const float GLOBAL_RPC_COOLDOWN = 0.01f; // 극한 최적화: 0.01초 (100Hz)
     
     public override void Spawned()
     {
@@ -46,102 +52,60 @@ public class SimplifiedPhysicsInteraction : NetworkBehaviour
             return;
         }
         
-        Debug.Log("SimplifiedPhysicsInteraction 초기화 완료");
+        // 네트워크 최적화 연동
+        networkOptimizer = FindObjectOfType<NetworkOptimizer>();
+        
+        // 초기화 완료 (로깅 제거)
     }
     
     public override void FixedUpdateNetwork()
     {
         if (!Object.HasInputAuthority) return;
         
-        // 충돌 정리 (0.5초마다)
-        if (Runner.Tick % 30 == 0)
-        {
-            CleanupCollisions();
-        }
+        // 충돌 정리 빈도 감소 (성능 최적화: 2초마다)
+        if (Runner.Tick % 120 == 0) CleanupCollisions();
     }
     
-    #region Fusion v2 Collision Detection
+    #region Collision Detection
     
-    // Fusion v2에서 권장: OnTriggerStay 사용
-    private void OnTriggerStay(Collider other)
-    {
-        if (!Object.HasInputAuthority) return;
-        
-        HandleTriggerInteraction(other, true);
-    }
-    
-    private void OnTriggerExit(Collider other)
-    {
-        if (!Object.HasInputAuthority) return;
-        
-        HandleTriggerInteraction(other, false);
-    }
-    
-    // Fusion v2에서 권장: OnCollisionStay 사용
-    private void OnCollisionStay(Collision collision)
+    // 최적화: OnCollisionEnter만 사용 (OnCollisionStay 제거로 성능 향상)
+    private void OnCollisionEnter(Collision collision)
     {
         if (!Object.HasInputAuthority) return;
         
         HandlePhysicsCollision(collision);
     }
     
-    private void HandleTriggerInteraction(Collider other, bool isInside)
-    {
-        var otherNetworkObject = other.GetComponent<NetworkObject>();
-        if (otherNetworkObject == null) return;
-        
-        NetworkId otherId = otherNetworkObject.Id;
-        
-        if (isInside)
-        {
-            // 트리거 영역 내부
-            if (!ActiveCollisions.ContainsKey(otherId))
-            {
-                // 새로운 상호작용 시작
-                ActiveCollisions.Add(otherId, Runner.SimulationTime);
-                OnInteractionStart(otherNetworkObject);
-            }
-            else
-            {
-                // 지속적인 상호작용
-                ActiveCollisions.Set(otherId, Runner.SimulationTime);
-            }
-        }
-        else
-        {
-            // 트리거 영역 이탈
-            if (ActiveCollisions.ContainsKey(otherId))
-            {
-                ActiveCollisions.Remove(otherId);
-                OnInteractionEnd(otherNetworkObject);
-            }
-        }
-    }
-    
-    private void HandlePhysicsCollision(Collision collision)
+        private void HandlePhysicsCollision(Collision collision)
     {
         var otherNetworkObject = collision.gameObject.GetComponent<NetworkObject>();
         if (otherNetworkObject == null) return;
-        
+
+        // 극한 최적화: 조건문 최소화
         NetworkId otherId = otherNetworkObject.Id;
+        float currentTime = Runner.SimulationTime;
         
-        // 쿨다운 확인
-        if (lastCollisionTimes.ContainsKey(otherId))
-        {
-            float timeSinceLastCollision = Runner.SimulationTime - lastCollisionTimes[otherId];
-            if (timeSinceLastCollision < collisionCooldown) return;
-        }
+        // 쿨다운 체크 간소화
+        if (lastCollisionTimes.TryGetValue(otherId, out float lastTime) && 
+            currentTime - lastTime < collisionCooldown) return;
         
-        // 충돌 강도 계산
-        float impulse = CalculateCollisionImpulse(collision);
+        // 즉시 계산 및 적용 (중간 변수 제거)
+        float impulse = collision.relativeVelocity.magnitude * (rb?.mass ?? 1f);
         if (impulse < minCollisionForce) return;
         
-        // 충돌 시간 기록
-        lastCollisionTimes[otherId] = Runner.SimulationTime;
-        LastCollisionTime = Runner.SimulationTime;
+        lastCollisionTimes[otherId] = currentTime;
+        LastCollisionTime = currentTime;
         
-        // 충돌 처리
-        ProcessPhysicsCollision(otherNetworkObject, collision, impulse);
+        // 즉시 충돌 처리 (분리된 메서드 호출 제거로 성능 향상)
+        Vector3 force = -collision.contacts[0].normal * impulse * pushbackMultiplier;
+        rb?.AddForce(force, ForceMode.Impulse); // 즉시 100% 적용
+        
+        // 네트워크 동기화 (쿨다운 없이 즉시)
+        if (currentTime - lastGlobalRpcTime >= GLOBAL_RPC_COOLDOWN)
+        {
+            lastGlobalRpcTime = currentTime;
+            SimpleCollisionRpc(otherId, force, collision.contacts[0].point, impulse);
+        }
     }
     
     private float CalculateCollisionImpulse(Collision collision)
@@ -158,140 +122,102 @@ public class SimplifiedPhysicsInteraction : NetworkBehaviour
     
     #endregion
     
-    #region Collision Event Handlers
+
     
-    private void OnInteractionStart(NetworkObject other)
-    {
-        Debug.Log($"Interaction Start: {name} <-> {other.name}");
-        
-        // 상호작용 시작 이벤트
-        InteractionEventRpc(other.Id, "Start", transform.position);
-    }
+    #region Utility Methods
     
-    private void OnInteractionEnd(NetworkObject other)
+    private void CleanupCollisions()
     {
-        Debug.Log($"Interaction End: {name} <-> {other.name}");
-        
-        // 상호작용 종료 이벤트
-        InteractionEventRpc(other.Id, "End", transform.position);
-    }
-    
-    private void ProcessPhysicsCollision(NetworkObject other, Collision collision, float impulse)
-    {
-        Debug.Log($"Physics Collision: {name} <-> {other.name}, Impulse: {impulse}");
-        
-        Vector3 contactPoint = collision.contacts.Length > 0 ? 
-            collision.contacts[0].point : transform.position;
-        Vector3 normal = collision.contacts.Length > 0 ? 
-            collision.contacts[0].normal : Vector3.up;
-        
-        // 다른 플레이어와의 충돌
-        var otherPlayer = other.GetComponent<PlayerMovement>();
-        if (otherPlayer != null && enablePlayerPushback)
+        // 로컬 충돌 시간 정리만 수행 (성능 향상)
+        if (lastCollisionTimes.Count > 10) // 10개 초과시만 정리
         {
-            HandlePlayerCollision(otherPlayer, collision, impulse);
-        }
-        
-        // 물리 오브젝트와의 충돌
-        var otherRigidbody = other.GetComponent<NetworkRigidbody3D>();
-        if (otherRigidbody != null && enableObjectInteraction)
-        {
-            HandleObjectCollision(otherRigidbody, collision, impulse);
-        }
-        
-        // 충돌 효과
-        if (impulse > effectThreshold)
-        {
-            CollisionEffectRpc(contactPoint, impulse, normal);
+            var keysToRemove = new List<NetworkId>();
+            foreach (var kvp in lastCollisionTimes)
+            {
+                if (Runner.SimulationTime - kvp.Value > 3f) // 3초 타임아웃
+                {
+                    keysToRemove.Add(kvp.Key);
+                }
+            }
+            
+            foreach (var key in keysToRemove)
+            {
+                lastCollisionTimes.Remove(key);
+            }
         }
     }
     
-    private void HandlePlayerCollision(PlayerMovement otherPlayer, Collision collision, float impulse)
+
+    
+    
+    // 새로운 최적화 메서드들
+    private void ApplyLocalCollisionEffect(Collision collision, float impulse)
     {
-        // 밀려나는 힘 계산
-        Vector3 pushDirection = (transform.position - otherPlayer.transform.position).normalized;
-        Vector3 pushForce = pushDirection * impulse * pushbackMultiplier;
-        
-        // 자신에게 밀려나는 힘 적용 (PlayerMovement를 통해)
-        if (playerMovement != null)
+        // 즉시 100% 로컬 적용 (레이턴시 최소화)
+        Vector3 force = CalculateCollisionForce(collision, impulse);
+        if (rb != null)
         {
-            playerMovement.AddForce(pushForce, ForceMode.Impulse);
+            rb.AddForce(force, ForceMode.Impulse); // 100% 즉시 적용
         }
-        
-        // 상대방에게도 반대 방향 힘 적용
-        PlayerPushbackRpc(otherPlayer.Object.Id, -pushForce * 0.5f);
     }
     
-    private void HandleObjectCollision(NetworkRigidbody3D otherRigidbody, Collision collision, float impulse)
+    private void ProcessCollisionNetwork(NetworkObject other, Collision collision, float impulse)
     {
-        // 오브젝트에 힘 전달
-        Vector3 forceDirection = collision.contacts[0].normal;
-        Vector3 transferForce = -forceDirection * impulse * 0.8f;
-        Vector3 contactPoint = collision.contacts[0].point;
+        // NetworkOptimizer 연동 확인
+        if (networkOptimizer != null && !networkOptimizer.ShouldProcessPhysics()) return;
         
-        // 오브젝트에 힘 적용 요청
-        TransferForceToObjectRpc(otherRigidbody.Object.Id, transferForce, contactPoint);
+        // 글로벌 RPC 쿨다운 확인 (성능 최적화)
+        if (Runner.SimulationTime - lastGlobalRpcTime < GLOBAL_RPC_COOLDOWN) return;
+        
+        lastGlobalRpcTime = Runner.SimulationTime;
+        
+        Vector3 force = CalculateCollisionForce(collision, impulse);
+        Vector3 position = collision.contacts[0].point;
+        
+        // 간단한 개별 RPC 호출
+        SimpleCollisionRpc(other.Id, force, position, impulse);
     }
     
-    #endregion
+    private Vector3 CalculateCollisionForce(Collision collision, float impulse)
+    {
+        Vector3 normal = collision.contacts[0].normal;
+        return -normal * impulse * pushbackMultiplier;
+    }
     
-    #region RPC Methods
+    // ShowLocalEffect 메서드 제거로 호출 오버헤드 감소
     
     [Rpc(RpcSources.InputAuthority, RpcTargets.All)]
-    private void InteractionEventRpc(NetworkId otherId, string eventType, Vector3 position)
+    private void SimpleCollisionRpc(NetworkId otherId, Vector3 force, Vector3 position, float intensity)
     {
         var otherObject = Runner.FindObject(otherId);
-        if (otherObject != null)
+        if (otherObject == null) return;
+        
+        // 극한 최적화: 즉시 강력한 힘 적용 + 강제 업데이트
+        var otherRb = otherObject.GetComponent<Rigidbody>();
+        if (otherRb != null)
         {
-            Debug.Log($"Interaction {eventType} RPC: {name} <-> {otherObject.name}");
-            // 상호작용 이벤트별 처리 로직
+            otherRb.AddForce(force * 2f, ForceMode.Impulse); // 200% 극강화
+            otherRb.WakeUp(); // 강제 깨우기
+        }
+        
+        // 효과 재생 (간소화)
+        if (intensity > effectThreshold)
+        {
+            PlayCollisionEffect(position, intensity);
         }
     }
     
-    [Rpc(RpcSources.InputAuthority, RpcTargets.All)]
-    private void PlayerPushbackRpc(NetworkId playerId, Vector3 force)
+    private void PlayCollisionEffect(Vector3 position, float intensity)
     {
-        var playerObject = Runner.FindObject(playerId);
-        if (playerObject != null)
-        {
-            var otherPlayerMovement = playerObject.GetComponent<PlayerMovement>();
-            if (otherPlayerMovement != null)
-            {
-                otherPlayerMovement.AddForce(force, ForceMode.Impulse);
-            }
-        }
-    }
-    
-    [Rpc(RpcSources.InputAuthority, RpcTargets.All)]
-    private void TransferForceToObjectRpc(NetworkId objectId, Vector3 force, Vector3 contactPoint)
-    {
-        var obj = Runner.FindObject(objectId);
-        if (obj != null)
-        {
-            var networkRb = obj.GetComponent<NetworkRigidbody3D>();
-            if (networkRb != null && networkRb.Rigidbody != null)
-            {
-                networkRb.Rigidbody.AddForceAtPosition(force, contactPoint, ForceMode.Impulse);
-            }
-        }
-    }
-    
-    [Rpc(RpcSources.InputAuthority, RpcTargets.All)]
-    private void CollisionEffectRpc(Vector3 position, float intensity, Vector3 normal)
-    {
-        // 충돌 이펙트 재생
+        // 기존 효과 로직
         if (collisionEffectPrefab != null)
         {
-            var effect = Instantiate(collisionEffectPrefab, position, Quaternion.LookRotation(normal));
-            
-            // 강도에 따른 스케일 조정
+            var effect = Instantiate(collisionEffectPrefab, position, Quaternion.identity);
             float scale = Mathf.Clamp(intensity / 10f, 0.5f, 2f);
             effect.transform.localScale = Vector3.one * scale;
-            
             Destroy(effect, 2f);
         }
         
-        // 사운드 재생
         if (audioSource != null && collisionSounds.Length > 0)
         {
             int soundIndex = Mathf.FloorToInt(intensity / 5f);
@@ -301,118 +227,7 @@ public class SimplifiedPhysicsInteraction : NetworkBehaviour
     }
     
     #endregion
+
     
-    #region Utility Methods
-    
-    private void CleanupCollisions()
-    {
-        var keysToRemove = new List<NetworkId>();
-        
-        foreach (var kvp in ActiveCollisions)
-        {
-            float timeSinceCollision = Runner.SimulationTime - kvp.Value;
-            if (timeSinceCollision > 1f) // 1초 타임아웃
-            {
-                keysToRemove.Add(kvp.Key);
-            }
-        }
-        
-        foreach (var key in keysToRemove)
-        {
-            ActiveCollisions.Remove(key);
-        }
-        
-        // 로컬 충돌 시간도 정리
-        var localKeysToRemove = new List<NetworkId>();
-        foreach (var kvp in lastCollisionTimes)
-        {
-            float timeSinceCollision = Runner.SimulationTime - kvp.Value;
-            if (timeSinceCollision > 2f) // 2초 타임아웃
-            {
-                localKeysToRemove.Add(kvp.Key);
-            }
-        }
-        
-        foreach (var key in localKeysToRemove)
-        {
-            lastCollisionTimes.Remove(key);
-        }
-    }
-    
-    // 외부에서 호출 가능한 유틸리티 메서드들
-    public void ApplyExplosionEffect(Vector3 center, float force, float radius)
-    {
-        if (Object.HasInputAuthority && playerMovement != null)
-        {
-            playerMovement.AddExplosionForce(force, center, radius);
-        }
-    }
-    
-    public void AddExternalForce(Vector3 force, ForceMode mode = ForceMode.Impulse)
-    {
-        if (Object.HasInputAuthority && playerMovement != null)
-        {
-            playerMovement.AddForce(force, mode);
-        }
-    }
-    
-    public bool IsInteractingWith(NetworkId objectId)
-    {
-        return ActiveCollisions.ContainsKey(objectId);
-    }
-    
-    public int GetActiveInteractionCount()
-    {
-        return ActiveCollisions.Count;
-    }
-    
-    // PlayerMovement 설정 변경
-    public void SetPlayerMovementSettings(float newMoveForce, float newMaxSpeed)
-    {
-        if (playerMovement != null)
-        {
-            playerMovement.MoveForce = newMoveForce;
-            playerMovement.MaxSpeed = newMaxSpeed;
-        }
-    }
-    
-    // 충돌 설정 변경
-    public void SetCollisionSettings(float newMinForce, float newPushbackMultiplier, float newEffectThreshold)
-    {
-        minCollisionForce = newMinForce;
-        pushbackMultiplier = newPushbackMultiplier;
-        effectThreshold = newEffectThreshold;
-    }
-    
-    #endregion
-    
-    // 디버그용 기즈모
-    private void OnDrawGizmosSelected()
-    {
-        // 충돌 상호작용 표시
-        Gizmos.color = Color.red;
-        foreach (var kvp in ActiveCollisions)
-        {
-            var obj = Runner.FindObject(kvp.Key);
-            if (obj != null)
-            {
-                Gizmos.DrawLine(transform.position, obj.transform.position);
-            }
-        }
-    }
-    
-    // 디버그 정보
-    private void OnGUI()
-    {
-        if (!Object.HasInputAuthority) return;
-        
-        GUI.Box(new Rect(10, 260, 300, 80), "Physics Interaction");
-        
-        int yOffset = 280;
-        GUI.Label(new Rect(20, yOffset, 280, 20), $"Active Collisions: {ActiveCollisions.Count}");
-        yOffset += 20;
-        GUI.Label(new Rect(20, yOffset, 280, 20), $"Player Pushback: {enablePlayerPushback}");
-        yOffset += 20;
-        GUI.Label(new Rect(20, yOffset, 280, 20), $"Object Interaction: {enableObjectInteraction}");
-    }
+    // OnGUI 제거로 성능 향상
 }

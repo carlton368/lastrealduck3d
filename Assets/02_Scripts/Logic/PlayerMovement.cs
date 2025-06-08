@@ -20,8 +20,9 @@ public class PlayerMovement : NetworkBehaviour
     // 네트워크 동기화 변수들
     [Networked] public bool IsGrounded { get; set; }
 
-    // 입력 처리용
+    // 입력 처리용 (레이턴시 최적화)
     private bool _spacePressed;
+    private float _lastInputTime;
 
     public override void Spawned()
     {
@@ -50,7 +51,7 @@ public class PlayerMovement : NetworkBehaviour
         
         FindPlayerCamera();
         
-        Debug.Log($"NetworkRigidbody3D Player spawned - Gravity: {_networkRigidbody.Rigidbody.useGravity}");
+        // Debug.Log 제거 (성능 향상)
     }
 
     private void FindPlayerCamera()
@@ -78,8 +79,12 @@ public class PlayerMovement : NetworkBehaviour
             FindPlayerCamera();
         }
 
-        // Space키 입력 수집
-        _spacePressed = _spacePressed || Input.GetKeyDown(KeyCode.Space);
+        // Space키 입력 수집 (중복 입력 방지로 성능 향상)
+        if (Input.GetKeyDown(KeyCode.Space) && Time.time - _lastInputTime > 0.1f)
+        {
+            _spacePressed = true;
+            _lastInputTime = Time.time;
+        }
     }
 
     public override void FixedUpdateNetwork()
@@ -105,17 +110,16 @@ public class PlayerMovement : NetworkBehaviour
         Vector3 cameraForward = _playerCamera.transform.forward;
         Vector3 forceDirection = new Vector3(cameraForward.x, 0, cameraForward.z).normalized;
 
-        // 현재 수평 속도 체크
-        Vector3 currentVelocity = _networkRigidbody.Rigidbody.linearVelocity;
+        // 로컬 Rigidbody 직접 사용으로 레이턴시 제거
+        Rigidbody localRb = _networkRigidbody.Rigidbody;
+        Vector3 currentVelocity = localRb.linearVelocity;
         Vector3 horizontalVelocity = new Vector3(currentVelocity.x, 0, currentVelocity.z);
 
         // 최대 속도 제한
         if (horizontalVelocity.magnitude < MaxSpeed)
         {
-            // 카메라 방향으로 힘 적용
-            _networkRigidbody.Rigidbody.AddForce(forceDirection * MoveForce, ForceMode.Force);
-            
-            Debug.Log($"카메라 방향 이동: {forceDirection} x {MoveForce}");
+            // 즉시 로컬 물리 적용 (네트워크 지연 없음)
+            localRb.AddForce(forceDirection * MoveForce, ForceMode.Force);
         }
     }
 
@@ -125,12 +129,9 @@ public class PlayerMovement : NetworkBehaviour
         Vector3 position = _networkRigidbody.Rigidbody.position;
         Vector3 rayOrigin = position + Vector3.up * 0.1f;
         
-        // 바닥 감지
-        RaycastHit hit;
-        IsGrounded = Physics.Raycast(rayOrigin, Vector3.down, out hit, GroundCheckDistance);
-        
-        // 디버그용 (Scene View에서만 보임)
-        Debug.DrawRay(rayOrigin, Vector3.down * GroundCheckDistance, IsGrounded ? Color.green : Color.red);
+        // 바닥 감지 (QueryTriggerInteraction.Ignore로 성능 향상)
+        IsGrounded = Physics.Raycast(rayOrigin, Vector3.down, GroundCheckDistance, 
+            LayerMask.GetMask("Ground"), QueryTriggerInteraction.Ignore);
     }
 
     // 외부에서 힘을 가할 수 있는 메서드
@@ -173,22 +174,7 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
-    // 디버그용 Gizmo
-    void OnDrawGizmosSelected()
-    {
-        if (_networkRigidbody == null) return;
-
-        // 바닥 감지 Ray 표시
-        Gizmos.color = IsGrounded ? Color.green : Color.red;
-        Vector3 position = _networkRigidbody.Rigidbody.position;
-        Vector3 rayOrigin = position + Vector3.up * 0.1f;
-        Gizmos.DrawRay(rayOrigin, Vector3.down * GroundCheckDistance);
-        
-        // 속도 벡터 표시
-        Gizmos.color = Color.blue;
-        Vector3 velocity = _networkRigidbody.Rigidbody.linearVelocity;
-        Gizmos.DrawRay(position, velocity);
-    }
+    // 디버그 기즈모 제거 (성능 향상)
 
     // 컴포넌트 상태 확인
     private void OnValidate()

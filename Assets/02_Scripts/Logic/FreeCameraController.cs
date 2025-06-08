@@ -29,13 +29,18 @@ public class FreeCameraController : MonoBehaviour
     void Update()
     {
         HandleMouseLook();
-        HandleMovement();
         
-        // ESC로 커서 해제/잠금 토글
+        // ESC 키 처리 (GetKeyDown으로 최적화)
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             ToggleCursor();
         }
+    }
+    
+    void FixedUpdate()
+    {
+        // 물리 기반 이동은 FixedUpdate에서 처리 (성능 향상)
+        HandleMovement();
     }
     
     private void HandleMouseLook()
@@ -95,15 +100,20 @@ public class FreeCameraController : MonoBehaviour
         Vector3 direction = (targetPosition - currentPosition).normalized;
         float distance = Vector3.Distance(currentPosition, targetPosition);
         
-        // SphereCast로 충돌 검사
-        if (Physics.SphereCast(currentPosition, collisionRadius, direction, out RaycastHit hit, distance + collisionOffset, collisionLayers))
+        // 거리가 너무 작으면 충돌 검사 생략 (성능 최적화)
+        if (distance < 0.001f) return;
+        
+        // SphereCast로 충돌 검사 (최적화: QueryTriggerInteraction.Ignore)
+        if (Physics.SphereCast(currentPosition, collisionRadius, direction, out RaycastHit hit, 
+            distance + collisionOffset, collisionLayers, QueryTriggerInteraction.Ignore))
         {
             // 충돌이 감지되면 안전한 위치까지만 이동
             float safeDistance = Mathf.Max(0, hit.distance - collisionOffset);
             Vector3 safePosition = currentPosition + direction * safeDistance;
             
-            // 각 축별로 개별 이동 시도 (벽을 따라 미끄러지듯 이동)
-            TrySlideMovement(targetPosition, safePosition);
+            // 간단한 이동만 수행 (복잡한 슬라이드 제거)
+            transform.position = safePosition;
+            _lastValidPosition = safePosition;
         }
         else
         {
@@ -113,46 +123,7 @@ public class FreeCameraController : MonoBehaviour
         }
     }
     
-    private void TrySlideMovement(Vector3 targetPosition, Vector3 blockedPosition)
-    {
-        Vector3 currentPosition = transform.position;
-        
-        // X축 이동 시도
-        Vector3 xMovement = new Vector3(targetPosition.x, currentPosition.y, currentPosition.z);
-        if (IsPositionSafe(xMovement))
-        {
-            transform.position = xMovement;
-            _lastValidPosition = xMovement;
-            return;
-        }
-        
-        // Z축 이동 시도
-        Vector3 zMovement = new Vector3(currentPosition.x, currentPosition.y, targetPosition.z);
-        if (IsPositionSafe(zMovement))
-        {
-            transform.position = zMovement;
-            _lastValidPosition = zMovement;
-            return;
-        }
-        
-        // Y축 이동 시도
-        Vector3 yMovement = new Vector3(currentPosition.x, targetPosition.y, currentPosition.z);
-        if (IsPositionSafe(yMovement))
-        {
-            transform.position = yMovement;
-            _lastValidPosition = yMovement;
-            return;
-        }
-        
-        // 모든 축에서 막혔으면 제자리에 유지
-        transform.position = _lastValidPosition;
-    }
-    
-    private bool IsPositionSafe(Vector3 position)
-    {
-        // 해당 위치에서 충돌이 있는지 확인
-        return !Physics.CheckSphere(position, collisionRadius, collisionLayers);
-    }
+    // 복잡한 슬라이드 이동 시스템 제거 (성능 향상)
     
     private void ToggleCursor()
     {
@@ -168,17 +139,5 @@ public class FreeCameraController : MonoBehaviour
         }
     }
     
-    // 기즈모로 충돌 반경 시각화
-    void OnDrawGizmosSelected()
-    {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, collisionRadius);
-        
-        // 이동 방향 표시
-        if (Application.isPlaying)
-        {
-            Gizmos.color = Color.blue;
-            Gizmos.DrawRay(transform.position, transform.forward * 2f);
-        }
-    }
+    // 기즈모 제거 (Release 빌드에서 성능 향상)
 }

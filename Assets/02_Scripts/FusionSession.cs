@@ -68,12 +68,11 @@ namespace CuteDuckGame
             // 작업 완료 후 UI 다시 활성화
             UIManager.Instance.ToggleInteraction(true);
 
-            // 결과 확인 및 로그 출력
+            // 결과 확인 (Debug.Log 제거로 성능 향상)
             var result = task.Result;
-            Debug.Log($"StartGame Result: {result.ShutdownReason}");
             if (!result.Ok)
             {
-                Debug.LogWarning(result.ShutdownReason);
+                Debug.LogError($"Connection Failed: {result.ShutdownReason}");
             }
         }
 
@@ -94,8 +93,11 @@ namespace CuteDuckGame
             }
             else
             {
-                // 오류나 기타 이유로 종료되었을 때 경고 로그 출력
-                Debug.LogWarning(shutdownReason);
+                // 오류나 기타 이유로 종료되었을 때만 에러 로그 출력
+                if (shutdownReason != ShutdownReason.GameNotFound)
+                {
+                    Debug.LogError($"Connection Lost: {shutdownReason}");
+                }
             }
         }
 

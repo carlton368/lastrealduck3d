@@ -55,6 +55,41 @@ namespace CuteDuckGame
             }
             
             InitializeComponents();
+            
+            // 새 플레이어 접속 시 기존 오브젝트와의 물리 연산 활성화
+            InitializePhysicsForNewPlayer();
+        }
+        
+        /// <summary>
+        /// 새 플레이어가 기존 오브젝트들과 제대로 물리 연산하도록 초기화
+        /// </summary>
+        private void InitializePhysicsForNewPlayer()
+        {
+            // 모든 NetworkObject 찾기
+            var allNetworkObjects = FindObjectsOfType<NetworkObject>();
+            
+            foreach (var netObj in allNetworkObjects)
+            {
+                // 물리 상호작용 컴포넌트 확인 및 활성화
+                var physicsInteraction = netObj.GetComponent<SimplifiedPhysicsInteraction>();
+                if (physicsInteraction != null)
+                {
+                    // 컴포넌트가 비활성화되어 있다면 활성화
+                    if (!physicsInteraction.enabled)
+                    {
+                        physicsInteraction.enabled = true;
+                    }
+                }
+                
+                // NetworkCulling 확인 - 다른 플레이어 오브젝트는 항상 보이도록
+                var culling = netObj.GetComponent<NetworkCulling>();
+                if (culling != null && !netObj.HasInputAuthority)
+                {
+                    netObj.gameObject.SetActive(true);
+                }
+            }
+            
+            // 물리 연산 초기화 완료 (성능 최적화로 로깅 제거)
         }
         
         public override void FixedUpdateNetwork()
@@ -66,15 +101,15 @@ namespace CuteDuckGame
             }
             
             CheckDuckSpawnState();
-        }
-        
-        void Update()
-        {
-            if (Object != null && Object.IsValid)
+            
+            // UI 업데이트를 더 적게 (레이턴시 우선)
+            if (Runner.Tick % 12 == 0) // 약 5fps로 UI 업데이트
             {
                 UpdateUI();
             }
         }
+        
+        // Update 제거: UI 업데이트를 FixedUpdateNetwork에서 처리 (성능 향상)
         
         // ==============================================
         // 타이머 시스템
@@ -186,13 +221,17 @@ namespace CuteDuckGame
         
         private void InitializeComponents()
         {
-            // UI 컴포넌트 자동 찾기
+            // GameObject.Find 대신 태그 기반 찾기로 성능 향상
             if (timerText == null)
-                timerText = GameObject.Find("TimerText")?.GetComponent<TextMeshProUGUI>();
+            {
+                var timerObj = GameObject.FindWithTag("TimerUI");
+                if (timerObj != null) timerText = timerObj.GetComponent<TextMeshProUGUI>();
+            }
             if (playerCountText == null)
-                playerCountText = GameObject.Find("PlayerCountText")?.GetComponent<TextMeshProUGUI>();
-            
-            Debug.Log($"[GameSessionManager] 초기화 완료 - Timer: {timerText != null}, PlayerCount: {playerCountText != null}");
+            {
+                var playerCountObj = GameObject.FindWithTag("PlayerCountUI");
+                if (playerCountObj != null) playerCountText = playerCountObj.GetComponent<TextMeshProUGUI>();
+            }
         }
         
         // ==============================================
@@ -220,18 +259,6 @@ namespace CuteDuckGame
             }
         }
         
-        // ==============================================
-        // 테스트 메서드
-        // ==============================================
-        
-        [ContextMenu("Test Spawn Duck")]
-        public void TestSpawnDuck()
-        {
-            if (Object.HasStateAuthority)
-            {
-                ShouldSpawnDucks = true;
-                StartCoroutine(StopSpawning());
-            }
-        }
+        // 테스트 메서드 제거 (Release 빌드에서 불필요)
     }
 }
