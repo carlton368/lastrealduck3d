@@ -9,6 +9,16 @@ public class PlayerMovement : NetworkBehaviour
     private int _deadLayer;
     private bool _isDead;
 
+    // 사망 처리 RPC: 사망자에겐 패배 UI, 나머지에겐 승리 UI
+    [Rpc(RpcSources.InputAuthority, RpcTargets.All)]
+    private void OnDeathRpc()
+    {
+        if (_isDead)
+            UIManager.Instance.ShowDefeatPanel();
+        else
+            UIManager.Instance.ShowWinPanel();
+    }
+
     private Camera _playerCamera;
     private NetworkRigidbody3D _networkRigidbody;
 
@@ -220,8 +230,8 @@ public class PlayerMovement : NetworkBehaviour
             _isDead = true;
             // 즉시 이동 및 물리 정지
             Stop();
-            // 패배 UI 출력
-            UIManager.Instance.ShowDefeatPanel();
+            // 사망 RPC 호출
+            OnDeathRpc();
         }
     }
 }

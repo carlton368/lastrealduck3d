@@ -104,7 +104,8 @@ namespace CuteDuckGame
 
         private IEnumerator HandleDefeatRoutine(int returnSceneBuildIndex, float delaySeconds)
         {
-            yield return new WaitForSeconds(delaySeconds);
+            // 실시간(시간축 무시)으로 3초 대기
+            yield return new WaitForSecondsRealtime(delaySeconds);
             // title 씬 로드 방지
             _skipLoadTitleOnShutdown = true;
             // 세션 종료 -> 호스트면 마이그레이션 발생

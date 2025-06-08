@@ -20,6 +20,9 @@ namespace CuteDuckGame
         // Defeat 패널 GameObject를 연결하기 위한 필드
         [SerializeField] private GameObject defeatPanel;
 
+        // Win 패널 GameObject를 연결하기 위한 필드
+        [SerializeField] private GameObject winPanel;
+
         // 패배 후 자동 전환할 씬 인덱스 (빌드 설정 기준, 1 = 2번째 씬)
         [SerializeField] private int returnSceneBuildIndex = 0;
 
@@ -38,6 +41,10 @@ namespace CuteDuckGame
             if (defeatPanel != null)
                 defeatPanel.SetActive(false);
 
+            // Win 패널 초기 비활성화
+            if (winPanel != null)
+                winPanel.SetActive(false);
+
             // 씬이 로드될 때마다 이벤트를 받아서 OnSceneLoaded를 호출하도록 연결
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
@@ -55,6 +62,8 @@ namespace CuteDuckGame
                 ToggleLeaveButton(false);
                 // Defeat 패널 비활성화
                 defeatPanel?.SetActive(false);
+                // Win 패널 비활성화
+                winPanel?.SetActive(false);
                 return;
             }
 
@@ -65,6 +74,8 @@ namespace CuteDuckGame
                 ToggleLeaveButton(true);
                 // Defeat 패널 비활성화
                 defeatPanel?.SetActive(false);
+                // Win 패널 비활성화
+                winPanel?.SetActive(false);
                 return;
             }
         }
@@ -106,6 +117,22 @@ namespace CuteDuckGame
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             // 패배 처리: 3초 대기 후 세션 종료 및 씬 전환, 재연결
+            FusionSession.Instance.HandleDefeat(returnSceneBuildIndex, returnDelay);
+        }
+
+        /// <summary>
+        /// Win 패널을 활성화하고 UI 인터랙션을 끕니다.
+        /// </summary>
+        public void ShowWinPanel()
+        {
+            if (winPanel != null)
+                winPanel.SetActive(true);
+            // 입력 비활성화
+            ToggleInteraction(false);
+            // 커서 잠금 해제 및 보이기
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            // 승리 처리: 3초 대기 후 세션 종료 및 씬 전환, 재연결
             FusionSession.Instance.HandleDefeat(returnSceneBuildIndex, returnDelay);
         }
     }
