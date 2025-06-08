@@ -2,6 +2,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using System.Collections;
 
 namespace CuteDuckGame
 {
@@ -16,6 +17,15 @@ namespace CuteDuckGame
         // Leave 버튼 GameObject를 연결하기 위한 필드
         [SerializeField] private GameObject leaveButton;
 
+        // Defeat 패널 GameObject를 연결하기 위한 필드
+        [SerializeField] private GameObject defeatPanel;
+
+        // 패배 후 자동 전환할 씬 인덱스 (빌드 설정 기준, 1 = 2번째 씬)
+        [SerializeField] private int returnSceneBuildIndex = 0;
+
+        // 씬 전환 전 대기 시간(초)
+        [SerializeField] private float returnDelay = 3f;
+
         // 싱글톤(Singleton) 접근을 위한 정적 필드
         public static UIManager Instance;
 
@@ -23,6 +33,10 @@ namespace CuteDuckGame
         {
             // 싱글톤 초기화
             Instance = this;
+
+            // Defeat 패널 초기 비활성화
+            if (defeatPanel != null)
+                defeatPanel.SetActive(false);
 
             // 씬이 로드될 때마다 이벤트를 받아서 OnSceneLoaded를 호출하도록 연결
             SceneManager.sceneLoaded += OnSceneLoaded;
@@ -39,6 +53,8 @@ namespace CuteDuckGame
             {
                 TogglePlayButton(true);
                 ToggleLeaveButton(false);
+                // Defeat 패널 비활성화
+                defeatPanel?.SetActive(false);
                 return;
             }
 
@@ -47,6 +63,8 @@ namespace CuteDuckGame
             {
                 TogglePlayButton(false);
                 ToggleLeaveButton(true);
+                // Defeat 패널 비활성화
+                defeatPanel?.SetActive(false);
                 return;
             }
         }
@@ -73,6 +91,33 @@ namespace CuteDuckGame
         public void ToggleLeaveButton(bool isOn)
         {
             leaveButton.SetActive(isOn);
+        }
+
+        /// <summary>
+        /// Defeat 패널을 활성화하고 UI 인터랙션을 끕니다.
+        /// </summary>
+        public void ShowDefeatPanel()
+        {
+            if (defeatPanel != null)
+                defeatPanel.SetActive(true);
+            // 커서 잠금 해제 및 보이기
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            // Fusion 세션 종료 (호스트인 경우 호스트 마이그레이션 발생)
+            FusionSession.Instance.TryDisconnect();
+            // 입력 비활성화
+            ToggleInteraction(false);
+            // 설정된 씬으로 자동 전환
+            StartCoroutine(ReturnToScene());
+        }
+
+        private IEnumerator ReturnToScene()
+        {
+            // 3초 대기 후 씬 전환 및 Fusion 재연결
+            yield return new WaitForSeconds(3f);
+            SceneManager.LoadScene(returnSceneBuildIndex);
+            // Shared 모드 다시 시작
+            FusionSession.Instance.TryConnect();
         }
     }
 }

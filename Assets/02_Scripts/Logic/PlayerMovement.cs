@@ -1,9 +1,14 @@
 using Fusion;
 using Fusion.Addons.Physics;
 using UnityEngine;
+using CuteDuckGame;
 
 public class PlayerMovement : NetworkBehaviour
 {
+    // Dead 레이어 인덱스 (Awake에서 초기화)
+    private int _deadLayer;
+    private bool _isDead;
+
     private Camera _playerCamera;
     private NetworkRigidbody3D _networkRigidbody;
 
@@ -26,6 +31,12 @@ public class PlayerMovement : NetworkBehaviour
     // 입력 처리용 (레이턴시 최적화)
     private bool _spacePressed;
     private float _lastInputTime;
+
+    private void Awake()
+    {
+        // Dead layer 캐시
+        _deadLayer = LayerMask.NameToLayer("dead");
+    }
 
     public override void Spawned()
     {
@@ -194,6 +205,23 @@ public class PlayerMovement : NetworkBehaviour
         if (GetComponent<NetworkRigidbody3D>() == null)
         {
             Debug.LogWarning($"{name}: NetworkRigidbody3D 컴포넌트가 필요합니다!");
+        }
+    }
+
+    /// <summary>
+    /// Dead 레이어에 닿으면 패배 UI를 활성화합니다.
+    /// </summary>
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!Object.HasInputAuthority || _isDead) return;
+        // 데드 레이어 충돌 처리
+        if (other.gameObject.layer == _deadLayer)
+        {
+            _isDead = true;
+            // 즉시 이동 및 물리 정지
+            Stop();
+            // 패배 UI 출력
+            UIManager.Instance.ShowDefeatPanel();
         }
     }
 }

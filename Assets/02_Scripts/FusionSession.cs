@@ -11,6 +11,8 @@ namespace CuteDuckGame
 {
     public class FusionSession : MonoBehaviour, INetworkRunnerCallbacks
     {
+        // 싱글톤 접근을 위한 인스턴스
+        public static FusionSession Instance;
         // NetworkRunner 프리팹 참조
         public NetworkRunner runnerPrefab;
 
@@ -24,6 +26,13 @@ namespace CuteDuckGame
         // 오브젝트가 씬 전환 시 파괴되지 않도록 설정
         private void Awake()
         {
+            // 싱글톤 설정
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            Instance = this;
             DontDestroyOnLoad(this);
         }
 
