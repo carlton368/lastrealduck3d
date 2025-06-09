@@ -769,7 +769,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &832575518
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1633,7 +1633,7 @@ PrefabInstance:
     - target: {fileID: 2165464753483812571, guid: 26faea7aa9f7344b38de160d1cee5ed8, type: 3}
       propertyPath: m_fontAsset
       value: 
-      objectReference: {fileID: 11400000, guid: 3d431cf50a9bf41b7863cdd5fa440af9, type: 2}
+      objectReference: {fileID: 11400000, guid: 32429c9d3c915544cb9eb7286fe63f15, type: 2}
     - target: {fileID: 2165464753483812571, guid: 26faea7aa9f7344b38de160d1cee5ed8, type: 3}
       propertyPath: m_fontColor.b
       value: 0.9
@@ -1653,7 +1653,7 @@ PrefabInstance:
     - target: {fileID: 2165464753483812571, guid: 26faea7aa9f7344b38de160d1cee5ed8, type: 3}
       propertyPath: m_sharedMaterial
       value: 
-      objectReference: {fileID: 6181823983368368580, guid: 3d431cf50a9bf41b7863cdd5fa440af9, type: 2}
+      objectReference: {fileID: 2441385034466241345, guid: 32429c9d3c915544cb9eb7286fe63f15, type: 2}
     - target: {fileID: 2165464753483812571, guid: 26faea7aa9f7344b38de160d1cee5ed8, type: 3}
       propertyPath: m_fontColor32.rgba
       value: 4293322470
@@ -1679,6 +1679,10 @@ PrefabInstance:
       value: 100
       objectReference: {fileID: 0}
     - target: {fileID: 5491775580895571769, guid: 26faea7aa9f7344b38de160d1cee5ed8, type: 3}
+      propertyPath: m_fontAsset
+      value: 
+      objectReference: {fileID: 11400000, guid: 32429c9d3c915544cb9eb7286fe63f15, type: 2}
+    - target: {fileID: 5491775580895571769, guid: 26faea7aa9f7344b38de160d1cee5ed8, type: 3}
       propertyPath: m_fontColor.a
       value: 1
       objectReference: {fileID: 0}
@@ -1699,8 +1703,16 @@ PrefabInstance:
       value: 100
       objectReference: {fileID: 0}
     - target: {fileID: 5491775580895571769, guid: 26faea7aa9f7344b38de160d1cee5ed8, type: 3}
+      propertyPath: m_sharedMaterial
+      value: 
+      objectReference: {fileID: 2441385034466241345, guid: 32429c9d3c915544cb9eb7286fe63f15, type: 2}
+    - target: {fileID: 5491775580895571769, guid: 26faea7aa9f7344b38de160d1cee5ed8, type: 3}
       propertyPath: m_fontColor32.rgba
       value: 4293322470
+      objectReference: {fileID: 0}
+    - target: {fileID: 5491775580895571769, guid: 26faea7aa9f7344b38de160d1cee5ed8, type: 3}
+      propertyPath: m_hasFontAssetChanged
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8359937528738833727, guid: 26faea7aa9f7344b38de160d1cee5ed8, type: 3}
       propertyPath: m_AnchorMin.x
